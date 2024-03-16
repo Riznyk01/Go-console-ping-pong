@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"github.com/eiannone/keyboard"
+	"github.com/gopxl/beep/speaker"
+	"ping-pong/internal/audio_engine"
 	"ping-pong/internal/game"
 	"ping-pong/internal/models"
 	"ping-pong/internal/utils"
@@ -28,6 +30,8 @@ const (
 	// screen center for starting the game
 	centerRow, centerCol = (rows / 2) + 1, (cols / 2) + 1
 	failPause            = 2 * time.Millisecond
+	sampleRate           = 44100
+	bufferSize           = 1411
 )
 
 type Game struct {
@@ -36,19 +40,25 @@ type Game struct {
 	bRocket *models.Rocket
 	aScore  int
 	bScore  int
+	sound   *audio_engine.AudioPlayer
 }
 
-func NewGame(ball *models.Ball, aRocket *models.Rocket, bRocket *models.Rocket) *Game {
+func NewGame(ball *models.Ball, aRocket *models.Rocket, bRocket *models.Rocket, sound *audio_engine.AudioPlayer) *Game {
 	return &Game{
 		ball:    ball,
 		aRocket: aRocket,
 		bRocket: bRocket,
 		aScore:  0,
 		bScore:  0,
+		sound:   sound,
 	}
 }
 
 func main() {
+	speaker.Init(sampleRate, bufferSize)
+
+	player := audio_engine.NewAudioPlayer()
+	player.LoadSound("sound")
 
 	ball := game.NewBall(
 		models.Coordinates{X: centerCol, Y: centerRow}, models.Coordinates{X: 1, Y: 1})
@@ -56,7 +66,7 @@ func main() {
 	rocketA := game.NewRocket(models.Coordinates{X: 0, Y: centerRow}, rocketSide)
 	rocketB := game.NewRocket(models.Coordinates{X: cols, Y: centerRow}, rocketSide)
 
-	pingpong := NewGame(ball, rocketA, rocketB)
+	pingpong := NewGame(ball, rocketA, rocketB, player)
 
 	keysChannel := make(chan keyboard.KeyEvent)
 
@@ -123,22 +133,28 @@ func (g *Game) move() {
 
 	if g.ball.Coord.X == cols {
 		g.ball.Direction.X *= -1
+		g.sound.PlaySound("hit.wav")
 		if g.ball.Coord.Y < (g.bRocket.Coord.Y-rocketSide) || g.ball.Coord.Y > (g.bRocket.Coord.Y+rocketSide) {
 			g.ball.Coord.X = centerCol
 			g.ball.Coord.Y = centerRow
 			g.aScore++
+			g.sound.PlaySound("win.wav")
 		}
 	} else if g.ball.Coord.X == 0 {
 		g.ball.Direction.X *= -1
+		g.sound.PlaySound("hit.wav")
 		if g.ball.Coord.Y < (g.aRocket.Coord.Y-rocketSide) || g.ball.Coord.Y > (g.aRocket.Coord.Y+rocketSide) {
 			g.ball.Coord.X = centerCol
 			g.ball.Coord.Y = centerRow
 			g.bScore++
+			g.sound.PlaySound("win.wav")
 		}
 	}
 	if g.ball.Coord.Y == rows {
+		g.sound.PlaySound("hit.wav")
 		g.ball.Direction.Y *= -1
 	} else if g.ball.Coord.Y == 0 {
+		g.sound.PlaySound("hit.wav")
 		g.ball.Direction.Y *= -1
 	}
 }
