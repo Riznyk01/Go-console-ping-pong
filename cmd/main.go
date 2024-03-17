@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"github.com/eiannone/keyboard"
 	"github.com/gopxl/beep/speaker"
+	"log"
+	"os"
 	"ping-pong/internal/audio_engine"
 	"ping-pong/internal/game"
 	"ping-pong/internal/models"
@@ -14,59 +16,64 @@ import (
 
 const (
 	// screen size
-	cols = 120
-	rows = 27
+	windowWidth  = 120
+	windowHeight = 27
 	// rocket size
 	rocketSide = 4
 	// window title
 	title = " Go PING-PONG "
 	// chars for the filling pixels, empty pixels, header, footer filling
-	filled     = '█'
-	empty      = '░'
-	headerChar = '▬'
-	footerChar = '▬'
+	filler       = '█'
+	emptyFiller  = '░'
+	headerFiller = '▬'
+	footerFiller = '▬'
 	// delay between screen updating
 	delay = 16 * time.Millisecond
 	// screen center for starting the game
-	centerRow, centerCol = (rows / 2) + 1, (cols / 2) + 1
+	centerRow, centerCol = (windowHeight / 2) + 1, (windowWidth / 2) + 1
 	failPause            = 2 * time.Millisecond
 	sampleRate           = 44100
 	bufferSize           = 1411
 )
 
 type Game struct {
-	ball    *models.Ball
-	aRocket *models.Rocket
-	bRocket *models.Rocket
-	aScore  int
-	bScore  int
-	sound   *audio_engine.AudioPlayer
+	ball        *models.Ball
+	leftRocket  *models.Rocket
+	rightRocket *models.Rocket
+	score       [2]int
+	audio       *audio_engine.AudioPlayer
 }
 
-func NewGame(ball *models.Ball, aRocket *models.Rocket, bRocket *models.Rocket, sound *audio_engine.AudioPlayer) *Game {
+func NewGame(ball *models.Ball, aRocket *models.Rocket, bRocket *models.Rocket, soundEngine *audio_engine.AudioPlayer) *Game {
 	return &Game{
-		ball:    ball,
-		aRocket: aRocket,
-		bRocket: bRocket,
-		aScore:  0,
-		bScore:  0,
-		sound:   sound,
+		ball:        ball,
+		leftRocket:  aRocket,
+		rightRocket: bRocket,
+		score:       [2]int{0, 0},
+		audio:       soundEngine,
 	}
 }
 
 func main() {
+	logFile, err := os.OpenFile("logfile.txt", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		log.Fatal("error occurred while opening logfile:", err)
+	}
+	defer logFile.Close()
+	log.SetOutput(logFile)
+
 	speaker.Init(sampleRate, bufferSize)
 
-	player := audio_engine.NewAudioPlayer()
-	player.LoadSound("sound")
+	soundPlayer := audio_engine.NewAudioPlayer()
+	soundPlayer.LoadSound("sound")
 
 	ball := game.NewBall(
 		models.Coordinates{X: centerCol, Y: centerRow}, models.Coordinates{X: 1, Y: 1})
 
-	rocketA := game.NewRocket(models.Coordinates{X: 0, Y: centerRow}, rocketSide)
-	rocketB := game.NewRocket(models.Coordinates{X: cols, Y: centerRow}, rocketSide)
+	lRocket := game.NewRocket(models.Coordinates{X: 0, Y: centerRow}, rocketSide)
+	rRocket := game.NewRocket(models.Coordinates{X: windowWidth, Y: centerRow}, rocketSide)
 
-	pingpong := NewGame(ball, rocketA, rocketB, player)
+	pingpong := NewGame(ball, lRocket, rRocket, soundPlayer)
 
 	keysChannel := make(chan keyboard.KeyEvent)
 
@@ -105,22 +112,22 @@ func (g *Game) handleKeyEventsForRockets(ch chan keyboard.KeyEvent) {
 		select {
 		case char := <-ch:
 			if char.Rune == 'W' || char.Rune == 'w' {
-				if g.aRocket.Coord.Y-rocketSide > 0 {
-					g.aRocket.Coord.Y -= 1
+				if g.leftRocket.Coord.Y-rocketSide > 0 {
+					g.leftRocket.Coord.Y -= 1
 				}
 			} else if char.Rune == 'S' || char.Rune == 's' {
-				if g.aRocket.Coord.Y+rocketSide < rows {
-					g.aRocket.Coord.Y += 1
+				if g.leftRocket.Coord.Y+rocketSide < windowHeight {
+					g.leftRocket.Coord.Y += 1
 				}
 			}
 		case key := <-ch:
 			if key.Key == keyboard.KeyArrowUp {
-				if g.bRocket.Coord.Y-rocketSide > 0 {
-					g.bRocket.Coord.Y -= 1
+				if g.rightRocket.Coord.Y-rocketSide > 0 {
+					g.rightRocket.Coord.Y -= 1
 				}
 			} else if key.Key == keyboard.KeyArrowDown {
-				if g.bRocket.Coord.Y+rocketSide < rows {
-					g.bRocket.Coord.Y += 1
+				if g.rightRocket.Coord.Y+rocketSide < windowHeight {
+					g.rightRocket.Coord.Y += 1
 				}
 			}
 		}
@@ -131,68 +138,68 @@ func (g *Game) move() {
 	g.ball.Coord.X += g.ball.Direction.X
 	g.ball.Coord.Y += g.ball.Direction.Y
 
-	if g.ball.Coord.X == cols {
+	if g.ball.Coord.X == windowWidth {
 		g.ball.Direction.X *= -1
-		g.sound.PlaySound("hit.wav")
-		if g.ball.Coord.Y < (g.bRocket.Coord.Y-rocketSide) || g.ball.Coord.Y > (g.bRocket.Coord.Y+rocketSide) {
+		g.audio.PlaySound("hit.wav")
+		if g.ball.Coord.Y < (g.rightRocket.Coord.Y-rocketSide) || g.ball.Coord.Y > (g.rightRocket.Coord.Y+rocketSide) {
 			g.ball.Coord.X = centerCol
 			g.ball.Coord.Y = centerRow
-			g.aScore++
-			g.sound.PlaySound("win.wav")
+			g.score[0]++
+			g.audio.PlaySound("win.wav")
 		}
 	} else if g.ball.Coord.X == 0 {
 		g.ball.Direction.X *= -1
-		g.sound.PlaySound("hit.wav")
-		if g.ball.Coord.Y < (g.aRocket.Coord.Y-rocketSide) || g.ball.Coord.Y > (g.aRocket.Coord.Y+rocketSide) {
+		g.audio.PlaySound("hit.wav")
+		if g.ball.Coord.Y < (g.leftRocket.Coord.Y-rocketSide) || g.ball.Coord.Y > (g.leftRocket.Coord.Y+rocketSide) {
 			g.ball.Coord.X = centerCol
 			g.ball.Coord.Y = centerRow
-			g.bScore++
-			g.sound.PlaySound("win.wav")
+			g.score[1]++
+			g.audio.PlaySound("win.wav")
 		}
 	}
-	if g.ball.Coord.Y == rows {
-		g.sound.PlaySound("hit.wav")
+	if g.ball.Coord.Y == windowHeight {
+		g.audio.PlaySound("hit.wav")
 		g.ball.Direction.Y *= -1
 	} else if g.ball.Coord.Y == 0 {
-		g.sound.PlaySound("hit.wav")
+		g.audio.PlaySound("hit.wav")
 		g.ball.Direction.Y *= -1
 	}
 }
 
 func (g *Game) updateScreen() {
 	utils.ClearConsole()
-	screen := make([][]rune, rows)
+	screen := make([][]rune, windowHeight)
 	for i := range screen {
-		screen[i] = make([]rune, cols)
+		screen[i] = make([]rune, windowWidth)
 	}
 	fmt.Print(headerBuilder())
 	for y, row := range screen {
-		for x := 0; x < cols; x++ {
+		for x := 0; x < windowWidth; x++ {
 			if y == g.ball.Coord.Y && x == g.ball.Coord.X {
-				row[x] = filled
-			} else if x == 0 && (y >= (g.aRocket.Coord.Y-rocketSide) && y <= (g.aRocket.Coord.Y+rocketSide)) {
-				row[x] = filled
-			} else if x == cols-1 && (y >= (g.bRocket.Coord.Y-rocketSide) && y <= (g.bRocket.Coord.Y+rocketSide)) {
-				row[x] = filled
+				row[x] = filler
+			} else if x == 0 && (y >= (g.leftRocket.Coord.Y-rocketSide) && y <= (g.leftRocket.Coord.Y+rocketSide)) {
+				row[x] = filler
+			} else if x == windowWidth-1 && (y >= (g.rightRocket.Coord.Y-rocketSide) && y <= (g.rightRocket.Coord.Y+rocketSide)) {
+				row[x] = filler
 			} else {
-				row[x] = empty
+				row[x] = emptyFiller
 			}
 		}
 	}
 	for _, line := range screen {
 		fmt.Printf("%s\n", string(line))
 	}
-	fmt.Print(footerBuilder(g.aScore, g.bScore))
+	fmt.Print(footerBuilder(g.score[0], g.score[1]))
 	<-time.After(delay)
 }
 
 func headerBuilder() string {
-	filler := strings.Repeat(string(headerChar), (cols-len(title))/2)
-	return filler + title + filler
+	topFiller := strings.Repeat(string(headerFiller), (windowWidth-len(title))/2)
+	return topFiller + title + topFiller
 }
 func footerBuilder(scoreLeft, scoreRight int) string {
-	a := fmt.Sprintf("%c SCORE A: %v ", footerChar, scoreLeft)
-	b := fmt.Sprintf(" SCORE B: %v %c", scoreRight, footerChar)
-	filler := strings.Repeat("▬", cols-len(a)-len(b))
-	return a + filler + b
+	a := fmt.Sprintf("%c SCORE A: %v ", footerFiller, scoreLeft)
+	b := fmt.Sprintf(" SCORE B: %v %c", scoreRight, footerFiller)
+	bottomFiller := strings.Repeat(string(footerFiller), windowWidth-len(a)-len(b)+4)
+	return a + bottomFiller + b
 }
