@@ -5,12 +5,13 @@ type Coordinates struct {
 	Y int
 }
 
-type Rocket struct {
+type Racket struct {
 	Coord Coordinates
 	Side  int
 }
 
 type Ball struct {
 	Coord     Coordinates
+	LastCoord Coordinates
 	Direction Coordinates
 }

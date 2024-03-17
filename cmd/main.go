@@ -5,6 +5,7 @@ import (
 	"github.com/eiannone/keyboard"
 	"github.com/gopxl/beep/speaker"
 	"log"
+	"math/rand"
 	"os"
 	"ping-pong/internal/audio_engine"
 	"ping-pong/internal/game"
@@ -18,8 +19,8 @@ const (
 	// screen size
 	windowWidth  = 120
 	windowHeight = 27
-	// rocket size
-	rocketSide = 4
+	// racket size
+	racketsSide = 4
 	// window title
 	title = " Go PING-PONG "
 	// chars for the filling pixels, empty pixels, header, footer filling
@@ -27,8 +28,9 @@ const (
 	emptyFiller  = '░'
 	headerFiller = '▬'
 	footerFiller = '▬'
-	// delay between screen updating
-	delay = 16 * time.Millisecond
+	// delays between screen updating and ball moving
+	//renderDelay     = 150 * time.Millisecond
+	ballMovingDelay = 15 * time.Millisecond
 	// screen center for starting the game
 	centerRow, centerCol = (windowHeight / 2) + 1, (windowWidth / 2) + 1
 	failPause            = 2 * time.Millisecond
@@ -36,19 +38,21 @@ const (
 	bufferSize           = 1411
 )
 
+var ballsFillers = [3]rune{'▒', '▓', '█'}
+
 type Game struct {
 	ball        *models.Ball
-	leftRocket  *models.Rocket
-	rightRocket *models.Rocket
+	leftRacket  *models.Racket
+	rightRacket *models.Racket
 	score       [2]int
 	audio       *audio_engine.AudioPlayer
 }
 
-func NewGame(ball *models.Ball, aRocket *models.Rocket, bRocket *models.Rocket, soundEngine *audio_engine.AudioPlayer) *Game {
+func NewGame(ball *models.Ball, aRacket *models.Racket, bRacket *models.Racket, soundEngine *audio_engine.AudioPlayer) *Game {
 	return &Game{
 		ball:        ball,
-		leftRocket:  aRocket,
-		rightRocket: bRocket,
+		leftRacket:  aRacket,
+		rightRacket: bRacket,
 		score:       [2]int{0, 0},
 		audio:       soundEngine,
 	}
@@ -68,21 +72,27 @@ func main() {
 	soundPlayer.LoadSound("sound")
 
 	ball := game.NewBall(
-		models.Coordinates{X: centerCol, Y: centerRow}, models.Coordinates{X: 1, Y: 1})
+		models.Coordinates{X: centerCol, Y: centerRow}, models.Coordinates{X: centerCol, Y: centerRow}, models.Coordinates{X: 1, Y: 1})
 
-	lRocket := game.NewRocket(models.Coordinates{X: 0, Y: centerRow}, rocketSide)
-	rRocket := game.NewRocket(models.Coordinates{X: windowWidth, Y: centerRow}, rocketSide)
+	lRacket := game.NewRacket(models.Coordinates{X: 0, Y: centerRow}, racketsSide)
+	rRacket := game.NewRacket(models.Coordinates{X: windowWidth, Y: centerRow}, racketsSide)
 
-	pingpong := NewGame(ball, lRocket, rRocket, soundPlayer)
+	pingpong := NewGame(ball, lRacket, rRacket, soundPlayer)
 
 	keysChannel := make(chan keyboard.KeyEvent)
 
 	go pressingReceiver(keysChannel)
-	go pingpong.handleKeyEventsForRockets(keysChannel)
+	go pingpong.handleKeyEventsForRackets(keysChannel)
 
+	screen := [windowHeight][windowWidth]rune{}
+	for y := 0; y < windowHeight; y++ {
+		for x := 0; x < windowWidth; x++ {
+			screen[y][x] = emptyFiller
+		}
+	}
 	for {
 		pingpong.move()
-		pingpong.updateScreen()
+		pingpong.updateScreen(screen)
 	}
 }
 
@@ -107,27 +117,27 @@ func pressingReceiver(ch chan keyboard.KeyEvent) {
 	}
 }
 
-func (g *Game) handleKeyEventsForRockets(ch chan keyboard.KeyEvent) {
+func (g *Game) handleKeyEventsForRackets(ch chan keyboard.KeyEvent) {
 	for {
 		select {
 		case char := <-ch:
 			if char.Rune == 'W' || char.Rune == 'w' {
-				if g.leftRocket.Coord.Y-rocketSide > 0 {
-					g.leftRocket.Coord.Y -= 1
+				if g.leftRacket.Coord.Y-racketsSide > 1 {
+					g.leftRacket.Coord.Y -= 1
 				}
 			} else if char.Rune == 'S' || char.Rune == 's' {
-				if g.leftRocket.Coord.Y+rocketSide < windowHeight {
-					g.leftRocket.Coord.Y += 1
+				if g.leftRacket.Coord.Y+racketsSide < windowHeight {
+					g.leftRacket.Coord.Y += 1
 				}
 			}
 		case key := <-ch:
 			if key.Key == keyboard.KeyArrowUp {
-				if g.rightRocket.Coord.Y-rocketSide > 0 {
-					g.rightRocket.Coord.Y -= 1
+				if g.rightRacket.Coord.Y-racketsSide > 1 {
+					g.rightRacket.Coord.Y -= 1
 				}
 			} else if key.Key == keyboard.KeyArrowDown {
-				if g.rightRocket.Coord.Y+rocketSide < windowHeight {
-					g.rightRocket.Coord.Y += 1
+				if g.rightRacket.Coord.Y+racketsSide < windowHeight {
+					g.rightRacket.Coord.Y += 1
 				}
 			}
 		}
@@ -141,16 +151,16 @@ func (g *Game) move() {
 	if g.ball.Coord.X == windowWidth {
 		g.ball.Direction.X *= -1
 		g.audio.PlaySound("hit.wav")
-		if g.ball.Coord.Y < (g.rightRocket.Coord.Y-rocketSide) || g.ball.Coord.Y > (g.rightRocket.Coord.Y+rocketSide) {
+		if g.ball.Coord.Y < (g.rightRacket.Coord.Y-racketsSide) || g.ball.Coord.Y > (g.rightRacket.Coord.Y+racketsSide) {
 			g.ball.Coord.X = centerCol
 			g.ball.Coord.Y = centerRow
 			g.score[0]++
 			g.audio.PlaySound("win.wav")
 		}
-	} else if g.ball.Coord.X == 0 {
+	} else if g.ball.Coord.X == 1 {
 		g.ball.Direction.X *= -1
 		g.audio.PlaySound("hit.wav")
-		if g.ball.Coord.Y < (g.leftRocket.Coord.Y-rocketSide) || g.ball.Coord.Y > (g.leftRocket.Coord.Y+rocketSide) {
+		if g.ball.Coord.Y < (g.leftRacket.Coord.Y-racketsSide) || g.ball.Coord.Y > (g.leftRacket.Coord.Y+racketsSide) {
 			g.ball.Coord.X = centerCol
 			g.ball.Coord.Y = centerRow
 			g.score[1]++
@@ -160,37 +170,52 @@ func (g *Game) move() {
 	if g.ball.Coord.Y == windowHeight {
 		g.audio.PlaySound("hit.wav")
 		g.ball.Direction.Y *= -1
-	} else if g.ball.Coord.Y == 0 {
+	} else if g.ball.Coord.Y == 1 {
 		g.audio.PlaySound("hit.wav")
 		g.ball.Direction.Y *= -1
 	}
+	<-time.After(ballMovingDelay)
 }
 
-func (g *Game) updateScreen() {
+// updateScreen update the screen with the given rune array
+func (g *Game) updateScreen(screen [windowHeight][windowWidth]rune) {
 	utils.ClearConsole()
-	screen := make([][]rune, windowHeight)
-	for i := range screen {
-		screen[i] = make([]rune, windowWidth)
-	}
 	fmt.Print(headerBuilder())
-	for y, row := range screen {
-		for x := 0; x < windowWidth; x++ {
-			if y == g.ball.Coord.Y && x == g.ball.Coord.X {
-				row[x] = filler
-			} else if x == 0 && (y >= (g.leftRocket.Coord.Y-rocketSide) && y <= (g.leftRocket.Coord.Y+rocketSide)) {
-				row[x] = filler
-			} else if x == windowWidth-1 && (y >= (g.rightRocket.Coord.Y-rocketSide) && y <= (g.rightRocket.Coord.Y+rocketSide)) {
-				row[x] = filler
-			} else {
-				row[x] = emptyFiller
-			}
-		}
-	}
+	// Clear rackets' position lines
 	for _, line := range screen {
-		fmt.Printf("%s\n", string(line))
+		line[0] = emptyFiller
+		line[len(line)-1] = emptyFiller
+	}
+	// Clear the ball's last position, fill the ball's current position,
+	// and save the ball's position to the last coordinates
+	log.Printf("a ball coordinates are: X %d, Y %d", g.ball.Coord.X, g.ball.Coord.Y)
+	screen[g.ball.LastCoord.Y-1][g.ball.LastCoord.X-1] = emptyFiller
+	g.ball.LastCoord.X = g.ball.Coord.X
+	g.ball.LastCoord.Y = g.ball.Coord.Y
+	screen[g.ball.Coord.Y-1][g.ball.Coord.X-1] = ballsFillers[rand.Intn(len(ballsFillers))]
+	// Fill rackets' positions
+	for l := g.leftRacket.Coord.Y - racketsSide; l <= g.leftRacket.Coord.Y+racketsSide; l++ {
+		screen[l-1][0] = filler
+	}
+	for r := g.rightRacket.Coord.Y - racketsSide; r <= g.rightRacket.Coord.Y+racketsSide; r++ {
+		screen[r-1][len(screen[r-1])-1] = filler
+	}
+	log.Printf("left racket coordinates are: X %d, Y %d", g.leftRacket.Coord.X, g.leftRacket.Coord.Y)
+	log.Printf("right racket coordinates are: X %d, Y %d", g.leftRacket.Coord.X, g.leftRacket.Coord.Y)
+	// Log the characters of the screens' array
+	for _, line := range screen {
+		log.Printf("%c\n", line)
+	}
+	// Print characters in each line of the screen
+	for _, line := range screen {
+		var pxRow string
+		for _, px := range line {
+			pxRow += string(px)
+		}
+		fmt.Printf("%s\n", pxRow)
 	}
 	fmt.Print(footerBuilder(g.score[0], g.score[1]))
-	<-time.After(delay)
+	//<-time.After(renderDelay)
 }
 
 func headerBuilder() string {

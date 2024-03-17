@@ -23,14 +23,14 @@ func (e *EngineBeep) LoadSound(folderPath string) {
 	log.Printf("receiving audio files list from the path: %s\n", folderPath)
 	files, err := filepath.Glob(filepath.Join(folderPath, "*"))
 	if err != nil || len(files) == 0 {
-		log.Printf("error occured while receiving audio files list from the path: %s %v\n", folderPath, err)
+		log.Printf("error occurred while receiving audio files list from the path: %s %v\n", folderPath, err)
 		if len(files) == 0 {
-			log.Println("no file names received")
+			log.Println("no files received")
 		}
 	}
 	log.Printf("received filenames: %v\n", files)
 	for _, file := range files {
-		log.Printf("opening audio: %s\n", file)
+		log.Printf("opening audio file: %s\n", file)
 		f, err := os.Open(file)
 		if err != nil {
 			log.Fatal(err)
@@ -41,7 +41,7 @@ func (e *EngineBeep) LoadSound(folderPath string) {
 		}
 		buffer := beep.NewBuffer(format)
 		buffer.Append(streamer)
-		log.Printf("adding buffer for %s to buffers map\n", filepath.Base(file))
+		log.Printf("adding the buffer for %s to buffers map\n", filepath.Base(file))
 		e.buffers[filepath.Base(file)] = buffer
 		streamer.Close()
 
