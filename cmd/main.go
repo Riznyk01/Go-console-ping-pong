@@ -19,18 +19,17 @@ const (
 	// screen size
 	windowWidth  = 120
 	windowHeight = 27
-	// racket size
-	racketsSide = 4
 	// window title
 	title = " Go PING-PONG "
 	// chars for the filling pixels, empty pixels, header, footer filling
-	filler       = '█'
-	emptyFiller  = '░'
-	headerFiller = '▬'
-	footerFiller = '▬'
+	filler            = '▒'
+	emptyFiller       = 'ₓ'
+	headerFiller      = '▬'
+	footerFiller      = '▬'
+	racketsLineFiller = '⁞'
 	// delays between screen updating and ball moving
-	//renderDelay     = 150 * time.Millisecond
-	ballMovingDelay = 15 * time.Millisecond
+	ballMovingDelay = 40 * time.Millisecond
+	renderDelay     = 40 * time.Millisecond
 	// screen center for starting the game
 	centerRow, centerCol = (windowHeight / 2) + 1, (windowWidth / 2) + 1
 	failPause            = 2 * time.Millisecond
@@ -74,8 +73,8 @@ func main() {
 	ball := game.NewBall(
 		models.Coordinates{X: centerCol, Y: centerRow}, models.Coordinates{X: centerCol, Y: centerRow}, models.Coordinates{X: 1, Y: 1})
 
-	lRacket := game.NewRacket(models.Coordinates{X: 0, Y: centerRow}, racketsSide)
-	rRacket := game.NewRacket(models.Coordinates{X: windowWidth, Y: centerRow}, racketsSide)
+	lRacket := game.NewRacket(models.Coordinates{X: 0, Y: centerRow}, 4)
+	rRacket := game.NewRacket(models.Coordinates{X: windowWidth, Y: centerRow}, 4)
 
 	pingpong := NewGame(ball, lRacket, rRacket, soundPlayer)
 
@@ -84,15 +83,19 @@ func main() {
 	go pressingReceiver(keysChannel)
 	go pingpong.handleKeyEventsForRackets(keysChannel)
 
-	screen := [windowHeight][windowWidth]rune{}
-	for y := 0; y < windowHeight; y++ {
-		for x := 0; x < windowWidth; x++ {
-			screen[y][x] = emptyFiller
+	screen := make([][]rune, windowHeight)
+	for i := 0; i < windowHeight; i++ {
+		lineRow := make([]rune, windowWidth)
+		lineRow[0] = racketsLineFiller
+		lineRow[len(lineRow)-1] = racketsLineFiller
+		for linePx := 1; linePx < len(lineRow)-1; linePx++ {
+			lineRow[linePx] = emptyFiller
 		}
+		screen[i] = lineRow
 	}
+	go pingpong.move()
+	go pingpong.updateScreen(screen)
 	for {
-		pingpong.move()
-		pingpong.updateScreen(screen)
 	}
 }
 
@@ -122,21 +125,21 @@ func (g *Game) handleKeyEventsForRackets(ch chan keyboard.KeyEvent) {
 		select {
 		case char := <-ch:
 			if char.Rune == 'W' || char.Rune == 'w' {
-				if g.leftRacket.Coord.Y-racketsSide > 1 {
+				if g.leftRacket.Coord.Y-g.leftRacket.Side > 1 {
 					g.leftRacket.Coord.Y -= 1
 				}
 			} else if char.Rune == 'S' || char.Rune == 's' {
-				if g.leftRacket.Coord.Y+racketsSide < windowHeight {
+				if g.leftRacket.Coord.Y+g.leftRacket.Side < windowHeight {
 					g.leftRacket.Coord.Y += 1
 				}
 			}
 		case key := <-ch:
 			if key.Key == keyboard.KeyArrowUp {
-				if g.rightRacket.Coord.Y-racketsSide > 1 {
+				if g.rightRacket.Coord.Y-g.rightRacket.Side > 1 {
 					g.rightRacket.Coord.Y -= 1
 				}
 			} else if key.Key == keyboard.KeyArrowDown {
-				if g.rightRacket.Coord.Y+racketsSide < windowHeight {
+				if g.rightRacket.Coord.Y+g.rightRacket.Side < windowHeight {
 					g.rightRacket.Coord.Y += 1
 				}
 			}
@@ -145,77 +148,79 @@ func (g *Game) handleKeyEventsForRackets(ch chan keyboard.KeyEvent) {
 }
 
 func (g *Game) move() {
-	g.ball.Coord.X += g.ball.Direction.X
-	g.ball.Coord.Y += g.ball.Direction.Y
+	for {
+		<-time.After(ballMovingDelay)
+		g.ball.Coord.X += g.ball.Direction.X
+		g.ball.Coord.Y += g.ball.Direction.Y
 
-	if g.ball.Coord.X == windowWidth {
-		g.ball.Direction.X *= -1
-		g.audio.PlaySound("hit.wav")
-		if g.ball.Coord.Y < (g.rightRacket.Coord.Y-racketsSide) || g.ball.Coord.Y > (g.rightRacket.Coord.Y+racketsSide) {
-			g.ball.Coord.X = centerCol
-			g.ball.Coord.Y = centerRow
-			g.score[0]++
-			g.audio.PlaySound("win.wav")
+		if g.ball.Coord.X == windowWidth {
+			g.ball.Direction.X = -g.ball.Direction.X
+			g.audio.PlaySound("hit.wav")
+			if g.ball.Coord.Y < (g.rightRacket.Coord.Y-g.rightRacket.Side) || g.ball.Coord.Y > (g.rightRacket.Coord.Y+g.rightRacket.Side) {
+				g.ball.Coord.X, g.ball.Coord.Y = centerCol, centerRow
+				g.score[0]++
+				g.audio.PlaySound("win.wav")
+			}
+		} else if g.ball.Coord.X == 1 {
+			g.ball.Direction.X = -g.ball.Direction.X
+			g.audio.PlaySound("hit.wav")
+			if g.ball.Coord.Y < (g.leftRacket.Coord.Y-g.leftRacket.Side) || g.ball.Coord.Y > (g.leftRacket.Coord.Y+g.leftRacket.Side) {
+				g.ball.Coord.X, g.ball.Coord.Y = centerCol, centerRow
+				g.score[1]++
+				g.audio.PlaySound("win.wav")
+			}
 		}
-	} else if g.ball.Coord.X == 1 {
-		g.ball.Direction.X *= -1
-		g.audio.PlaySound("hit.wav")
-		if g.ball.Coord.Y < (g.leftRacket.Coord.Y-racketsSide) || g.ball.Coord.Y > (g.leftRacket.Coord.Y+racketsSide) {
-			g.ball.Coord.X = centerCol
-			g.ball.Coord.Y = centerRow
-			g.score[1]++
-			g.audio.PlaySound("win.wav")
+		if g.ball.Coord.Y == windowHeight {
+			g.audio.PlaySound("hit.wav")
+			g.ball.Direction.Y = -g.ball.Direction.Y
+		} else if g.ball.Coord.Y == 1 {
+			g.audio.PlaySound("hit.wav")
+			g.ball.Direction.Y = -g.ball.Direction.Y
 		}
 	}
-	if g.ball.Coord.Y == windowHeight {
-		g.audio.PlaySound("hit.wav")
-		g.ball.Direction.Y *= -1
-	} else if g.ball.Coord.Y == 1 {
-		g.audio.PlaySound("hit.wav")
-		g.ball.Direction.Y *= -1
-	}
-	<-time.After(ballMovingDelay)
 }
 
 // updateScreen update the screen with the given rune array
-func (g *Game) updateScreen(screen [windowHeight][windowWidth]rune) {
-	utils.ClearConsole()
-	fmt.Print(headerBuilder())
-	// Clear rackets' position lines
-	for _, line := range screen {
-		line[0] = emptyFiller
-		line[len(line)-1] = emptyFiller
-	}
-	// Clear the ball's last position, fill the ball's current position,
-	// and save the ball's position to the last coordinates
-	log.Printf("a ball coordinates are: X %d, Y %d", g.ball.Coord.X, g.ball.Coord.Y)
-	screen[g.ball.LastCoord.Y-1][g.ball.LastCoord.X-1] = emptyFiller
-	g.ball.LastCoord.X = g.ball.Coord.X
-	g.ball.LastCoord.Y = g.ball.Coord.Y
-	screen[g.ball.Coord.Y-1][g.ball.Coord.X-1] = ballsFillers[rand.Intn(len(ballsFillers))]
-	// Fill rackets' positions
-	for l := g.leftRacket.Coord.Y - racketsSide; l <= g.leftRacket.Coord.Y+racketsSide; l++ {
-		screen[l-1][0] = filler
-	}
-	for r := g.rightRacket.Coord.Y - racketsSide; r <= g.rightRacket.Coord.Y+racketsSide; r++ {
-		screen[r-1][len(screen[r-1])-1] = filler
-	}
-	log.Printf("left racket coordinates are: X %d, Y %d", g.leftRacket.Coord.X, g.leftRacket.Coord.Y)
-	log.Printf("right racket coordinates are: X %d, Y %d", g.leftRacket.Coord.X, g.leftRacket.Coord.Y)
-	// Log the characters of the screens' array
-	for _, line := range screen {
-		log.Printf("%c\n", line)
-	}
-	// Print characters in each line of the screen
-	for _, line := range screen {
-		var pxRow string
-		for _, px := range line {
-			pxRow += string(px)
+func (g *Game) updateScreen(screen [][]rune) {
+	for {
+		utils.ClearConsole()
+		fmt.Print(headerBuilder())
+		// Clear rackets' position lines
+		for _, line := range screen {
+			if line[0] == filler {
+				line[0] = racketsLineFiller
+			}
+			if line[len(line)-1] == filler {
+				line[len(line)-1] = racketsLineFiller
+			}
+
 		}
-		fmt.Printf("%s\n", pxRow)
+		// Clear the balls' last position, fill the balls' current position,
+		// and save the balls' position to the last coordinates
+		log.Printf("a ball coordinates are: X %d, Y %d", g.ball.Coord.X, g.ball.Coord.Y)
+		screen[g.ball.LastCoord.Y-1][g.ball.LastCoord.X-1] = emptyFiller
+		g.ball.LastCoord.X, g.ball.LastCoord.Y = g.ball.Coord.X, g.ball.Coord.Y
+		screen[g.ball.Coord.Y-1][g.ball.Coord.X-1] = ballsFillers[rand.Intn(len(ballsFillers))]
+		// Fill rackets' positions
+		for l := g.leftRacket.Coord.Y - g.leftRacket.Side; l <= g.leftRacket.Coord.Y+g.leftRacket.Side; l++ {
+			screen[l-1][0] = filler
+		}
+		for r := g.rightRacket.Coord.Y - g.rightRacket.Side; r <= g.rightRacket.Coord.Y+g.rightRacket.Side; r++ {
+			screen[r-1][len(screen[r-1])-1] = filler
+		}
+		log.Printf("left racket coordinates are: X %d, Y %d", g.leftRacket.Coord.X, g.leftRacket.Coord.Y)
+		log.Printf("right racket coordinates are: X %d, Y %d", g.leftRacket.Coord.X, g.leftRacket.Coord.Y)
+		// Print characters in each line of the screen
+		for _, line := range screen {
+			var pxRow string
+			for _, px := range line {
+				pxRow += string(px)
+			}
+			fmt.Printf("%s\n", pxRow)
+		}
+		fmt.Print(footerBuilder(g.score[0], g.score[1]))
+		<-time.After(renderDelay)
 	}
-	fmt.Print(footerBuilder(g.score[0], g.score[1]))
-	//<-time.After(renderDelay)
 }
 
 func headerBuilder() string {
@@ -223,8 +228,7 @@ func headerBuilder() string {
 	return topFiller + title + topFiller
 }
 func footerBuilder(scoreLeft, scoreRight int) string {
-	a := fmt.Sprintf("%c SCORE A: %v ", footerFiller, scoreLeft)
-	b := fmt.Sprintf(" SCORE B: %v %c", scoreRight, footerFiller)
-	bottomFiller := strings.Repeat(string(footerFiller), windowWidth-len(a)-len(b)+4)
-	return a + bottomFiller + b
+	left, right := fmt.Sprintf("%c SCORE: %v ", footerFiller, scoreLeft), fmt.Sprintf(" SCORE: %v %c", scoreRight, footerFiller)
+	bottomFiller := strings.Repeat(string(footerFiller), windowWidth-len(left)-len(right)+4)
+	return left + bottomFiller + right
 }
