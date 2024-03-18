@@ -35,6 +35,8 @@ const (
 	failPause            = 2 * time.Millisecond
 	sampleRate           = 44100
 	bufferSize           = 1411
+	rocketUpCommand      = "up"
+	rocketDownCommand    = "down"
 )
 
 var ballsFillers = [3]rune{'▒', '▓', '█'}
@@ -123,25 +125,32 @@ func pressingReceiver(ch chan keyboard.KeyEvent) {
 func (g *Game) handleKeyEventsForRackets(ch chan keyboard.KeyEvent) {
 	for {
 		select {
-		case char := <-ch:
-			if char.Rune == 'W' || char.Rune == 'w' {
-				if g.leftRacket.Coord.Y-g.leftRacket.Side > 1 {
-					g.leftRacket.Coord.Y -= 1
-				}
-			} else if char.Rune == 'S' || char.Rune == 's' {
-				if g.leftRacket.Coord.Y+g.leftRacket.Side < windowHeight {
-					g.leftRacket.Coord.Y += 1
-				}
+		case event := <-ch:
+			if event.Rune == 'W' || event.Rune == 'w' {
+				g.racketMove(rocketUpCommand, g.leftRacket)
+			} else if event.Rune == 'S' || event.Rune == 's' {
+				g.racketMove(rocketDownCommand, g.leftRacket)
+			} else if event.Key == keyboard.KeyArrowUp {
+				g.racketMove(rocketUpCommand, g.rightRacket)
+			} else if event.Key == keyboard.KeyArrowDown {
+				g.racketMove(rocketDownCommand, g.rightRacket)
 			}
-		case key := <-ch:
-			if key.Key == keyboard.KeyArrowUp {
-				if g.rightRacket.Coord.Y-g.rightRacket.Side > 1 {
-					g.rightRacket.Coord.Y -= 1
-				}
-			} else if key.Key == keyboard.KeyArrowDown {
-				if g.rightRacket.Coord.Y+g.rightRacket.Side < windowHeight {
-					g.rightRacket.Coord.Y += 1
-				}
+		}
+	}
+}
+func (g *Game) racketMove(event string, racket *models.Racket) {
+	if event == rocketUpCommand {
+		if racket.Coord.Y-racket.Side > 1 {
+			racket.Coord.Y -= 1
+			if racket.Coord.Y-racket.Side == 1 {
+				g.audio.PlaySound("wood_hit.wav")
+			}
+		}
+	} else if event == rocketDownCommand {
+		if racket.Coord.Y+racket.Side < windowHeight {
+			racket.Coord.Y += 1
+			if racket.Coord.Y+racket.Side == windowHeight {
+				g.audio.PlaySound("wood_hit.wav")
 			}
 		}
 	}
