@@ -48,7 +48,7 @@ func (e *EngineBeep) LoadSound(folderPath string) {
 	}
 }
 
-func (e *EngineBeep) PlaySound(audioFile string) {
+func (e *EngineBeep) Play(audioFile string) {
 	log.Printf("receiving StreamSeeker for file: %s\n", audioFile)
 	log.Println(e.buffers)
 	fx := e.buffers[audioFile].Streamer(0, e.buffers[audioFile].Len())

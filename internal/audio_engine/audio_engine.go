@@ -2,7 +2,7 @@ package audio_engine
 
 type Engine interface {
 	LoadSound(folderPath string)
-	PlaySound(audioFile string)
+	Play(audioFile string)
 }
 
 type AudioPlayer struct {
