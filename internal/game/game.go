@@ -77,14 +77,14 @@ func (g *Game) Output() {
 		}
 
 	}
-	// Clear the balls' last position, fill the balls' current position,
-	// and save the balls' position to the last coordinates
+	// Clear the ball`s last position, fill the ball`s current position,
+	// and save the ball`s position to the last coordinates
 	log.Printf("a ball coordinates are: X %d, Y %d", g.Ball.coord.X, g.Ball.coord.Y)
 	g.Field.Console[g.Ball.lastCoord.Y-1][g.Ball.lastCoord.X-1] = g.Cfg.EmptyFiller
 	g.Ball.lastCoord.X, g.Ball.lastCoord.Y = g.Ball.coord.X, g.Ball.coord.Y
 	g.Field.Console[g.Ball.coord.Y-1][g.Ball.coord.X-1] = ballsFillers[rand.Intn(len(ballsFillers))]
 
-	// Fill rackets' positions
+	// Fill rackets` positions
 	for l := g.LeftRacket.coord.Y - g.LeftRacket.side; l <= g.LeftRacket.coord.Y+g.LeftRacket.side; l++ {
 		g.Field.Console[l-1][0] = g.Cfg.Filler
 	}

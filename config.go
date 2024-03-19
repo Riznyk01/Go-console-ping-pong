@@ -1,6 +1,9 @@
 package ping_pong
 
-import "time"
+import (
+	"runtime"
+	"time"
+)
 
 type Config struct {
 	WindowWidth       int
@@ -23,11 +26,16 @@ type Config struct {
 }
 
 func NewConfig() (cfg *Config) {
-
 	cfg = &Config{}
 
-	cfg.WindowWidth = 120
-	cfg.WindowHeight = 27
+	if runtime.GOOS == "windows" {
+		cfg.WindowWidth = 120
+		cfg.WindowHeight = 27
+	} else {
+		cfg.WindowWidth = 80
+		cfg.WindowHeight = 22
+	}
+
 	cfg.Title = " Go console PING-PONG "
 	cfg.Filler = '▒'
 	cfg.EmptyFiller = 'ₓ'
