@@ -6,11 +6,6 @@ import (
 	"ping-pong/internal/models"
 )
 
-const (
-	rocketUpCommand   = "up"
-	rocketDownCommand = "down"
-)
-
 type Racket struct {
 	coord  models.Coordinates
 	side   int
@@ -28,7 +23,7 @@ func NewRacket(coord models.Coordinates, side int, soundEngine *audio_engine.Aud
 }
 
 func (r *Racket) Move(command string) {
-	if command == rocketUpCommand {
+	if command == r.config.RocketUpCommand {
 		if r.coord.Y-r.side > 1 {
 			r.coord.Y -= 1
 			r.MoveSound()
@@ -36,7 +31,7 @@ func (r *Racket) Move(command string) {
 				r.HitSound()
 			}
 		}
-	} else if command == rocketDownCommand {
+	} else if command == r.config.RocketDownCommand {
 		if r.coord.Y+r.side < r.config.WindowHeight {
 			r.MoveSound()
 			r.coord.Y += 1
