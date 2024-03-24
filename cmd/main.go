@@ -6,8 +6,8 @@ import (
 	"github.com/gopxl/beep/speaker"
 	"log"
 	"os"
-	ping_pong "ping-pong"
 	"ping-pong/internal/audio_engine"
+	"ping-pong/internal/config"
 	"ping-pong/internal/controller"
 	"ping-pong/internal/game"
 	"ping-pong/internal/models"
@@ -20,8 +20,8 @@ func main() {
 	}
 	defer logFile.Close()
 	log.SetOutput(logFile)
-
-	cfg := ping_pong.NewConfig()
+	cfg := config.MustLoad()
+	log.Println(cfg)
 
 	speaker.Init(beep.SampleRate(cfg.SampleRate), cfg.BufferSize)
 	soundPlayer := audio_engine.NewAudioPlayer()

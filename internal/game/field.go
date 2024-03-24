@@ -1,6 +1,8 @@
 package game
 
-import ping_pong "ping-pong"
+import (
+	ping_pong "ping-pong/internal/config"
+)
 
 type Field struct {
 	Console [][]rune

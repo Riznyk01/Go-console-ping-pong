@@ -1,8 +1,8 @@
 package game
 
 import (
-	ping_pong "ping-pong"
 	"ping-pong/internal/audio_engine"
+	ping_pong "ping-pong/internal/config"
 	"ping-pong/internal/models"
 )
 
