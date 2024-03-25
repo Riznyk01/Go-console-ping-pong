@@ -25,7 +25,7 @@ func main() {
 
 	speaker.Init(beep.SampleRate(cfg.SampleRate), cfg.BufferSize)
 	soundPlayer := audio_engine.NewAudioPlayer()
-	soundPlayer.LoadSound("sound")
+	soundPlayer.LoadSound(cfg.SoundPath)
 
 	ball := game.NewBall(
 		models.Coordinates{X: cfg.CenterCol, Y: cfg.CenterRow},

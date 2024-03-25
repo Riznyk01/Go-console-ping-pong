@@ -1,0 +1,13 @@
+title= " Go console PING-PONG "
+filler= 9618 #▒
+empty_filler= 8339 #ₓ
+header_filler= 9644 #▬
+footer_filler= 9644 #▬
+rackets_line_filler= 8286 #⁞
+ball_moving_delay= "20ms"
+render_delay= "20ms"
+rocket_up_command= "up"
+rocket_down_command= "down"
+sample_rate= 44100
+buffer_size= 1411
+sound_path = "sound"
